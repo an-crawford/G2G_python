@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from lifelines.utils import concordance_index
 from scipy.optimize import minimize
+import patsy
 
 # Background functions 
 
@@ -12,21 +13,33 @@ def logdiffexp(a, b):
     return c + np.log(np.exp(a - c) - np.exp(b - c))
 
 # model log-likelihood function
-def G2G_varying_LL(par, data_df):
+def G2G_varying_LL(par, data_df_input):
     # model variables: 
     # par : parameters
     # data_df : a pandas data frame with columns: id, id of each subject, time, duration observed for each subject, status   / 
     #           binary event variable, name_not_sure, covariance matrix
     # par[0] = mean of BG
     # par[1] = polarization of BG
-
+    data_df = data_df_input.copy()
     r = par[0]
     alpha = par[1]
     coeff = par[2:]
-
+    #display(data_df)
     X = data_df.iloc[:, 3:].values
+    #print("Type of X:", type(X))
+    #print("Type of coeff:", type(coeff))
+    #print(data_df.columns)
+    #print("Shape of X:", X.shape)
+    #print("Shape of coeff:", coeff.shape)
+    #print(np.array(np.dot(X, int(coeff))))
+    #print(X @ coeff)
+    dot = np.dot(X, coeff)
+    #print(type(dot))
+    #print(dot)
+    #print(np.array([np.exp(sublist) for sublist in dot]))
 
-    data_df['Ct'] = np.exp(np.dot(X, coeff))
+    
+    data_df['Ct'] = np.exp(np.array(dot))
 
     data_df['cumsumCt'] = data_df.groupby('id')['Ct'].cumsum()
     # gather unique id information
@@ -59,9 +72,10 @@ def G2G_varying_LL(par, data_df):
 # MLE 
 
 # Data Prep
-def G2G_varying_MLE(time, status, data, subject):
+def G2G_varying_MLE(time, status, indep, data, subject):
     # time: the time dependent variable
     # status: the status dependent variable
+    #indep: independent variables in a list
     # data: data frame
     # id: text field for the subject 
 
@@ -69,17 +83,17 @@ def G2G_varying_MLE(time, status, data, subject):
     time_name, status_name = time, status
 
     df_temp = data.drop(columns=[time_name, status_name], axis = 1)
-
-    X = pd.get_dummies(df_temp, drop_first=True)
+    df_temp = df_temp[indep]
+    X = np.array(df_temp)
 
     model_data = pd.DataFrame({
         'id': data[subject].values.flatten(),
         'time': data[time_name].values.flatten(),
         'status': data[status_name].values.flatten(),
-        'X': X.values.tolist()
     })
-
+    model_data = pd.concat([model_data, df_temp], axis = 1)
     return G2G_varying_optim(model_data)
+    
 
 # function used in the MLE function
 '''def G2G_varying_optim(model_data):
@@ -114,19 +128,22 @@ def G2G_varying_optim(model_data):
     par = np.concatenate(([0.5, 0.05], np.zeros(nvar - 2)))
     
     # Set lower and upper bounds for parameters
-    lower_bounds = [0.001, 0.001] + [-5.0] * (nvar - 2)
-    upper_bounds = [np.inf, np.inf] + [5.0] * (nvar - 2)
+    lower_bounds = [0.001, 0.001] + [-5] * (nvar - 2)
+    upper_bounds = [np.inf, np.inf] + [5] * (nvar - 2)
     
     # Perform optimization
     solution = minimize(objective_function, x0=par, method='L-BFGS-B',
                         bounds=list(zip(lower_bounds, upper_bounds)), options={'maxiter': 1000})
     
     # Compute standard errors
-    par_stderr = np.sqrt(np.diag(np.linalg.inv(solution.hess_inv)))
-    
+    #par_stderr = np.sqrt(np.diag(np.linalg.inv(solution.hess_inv)))
+    hessian_inv = np.linalg.inv(solution.hess_inv.todense())
+    par_stderr = np.sqrt(np.diag(hessian_inv))
+    solution['par_stderr'] = par_stderr
     # Compute upper and lower bounds for parameters
     par_upper = solution.x + 1.96 * par_stderr
     par_lower = solution.x - 1.96 * par_stderr
-    
+    solution['par_upper'] = par_upper
+    solution['par_lower'] = par_lower
     # Return the optimization result along with standard errors and bounds
-    return solution, par_stderr, par_upper, par_lower
+    return solution
