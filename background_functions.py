@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from lifelines.utils import concordance_index
 from scipy.optimize import minimize
-import patsy
+#import patsy
 
 # Background functions 
 
