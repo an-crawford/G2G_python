@@ -96,25 +96,6 @@ def G2G_varying_MLE(time, status, indep, data, subject):
     
 
 # function used in the MLE function
-'''def G2G_varying_optim(model_data):
-    nvar = model_data.shape[1] - 1
-
-    solution = minimize(
-        lambda par: G2G_varying_LL(par, model_data),
-        x0=np.concatenate(([0.5, 0.05], np.zeros(nvar - 2))),
-        args=(model_data,),
-        method='L-BFGS-B',
-        bounds=[(0.001, None), (0.001, None)] + [(-5, 5)] * (nvar - 2),
-        options={'maxiter': 1000},
-    )
-
-    par_stderr = np.sqrt(np.diag(np.linalg.inv(solution.hess_inv)))
-    solution.par_stderr = par_stderr
-    solution.par_upper = solution.x + 1.96 * par_stderr
-    solution.par_lower = solution.x - 1.96 * par_stderr
-
-    return solution
-    '''
 
 
 def G2G_varying_optim(model_data):
